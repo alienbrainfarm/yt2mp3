@@ -287,6 +287,10 @@ a {
   color: var(--acid);
 }
 
+.text-button.quit-button:hover {
+  color: var(--coral);
+}
+
 .text-button:disabled {
   color: var(--muted-2);
   cursor: default;

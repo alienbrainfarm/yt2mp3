@@ -17,7 +17,21 @@ A small, local Windows app that turns YouTube links into tagged MP3 files. Paste
 
 The heavy lifting is done by [yt-dlp](https://github.com/yt-dlp/yt-dlp) and a bundled ffmpeg binary from `imageio-ffmpeg`. There is no system-wide ffmpeg install required.
 
-## Quick start
+## Windows executable
+
+Download the latest build from
+[GitHub Releases](https://github.com/alienbrainfarm/yt2mp3/releases/latest), or
+build it locally with `build_exe.bat` and use `dist\yt2mp3-windows-x64.zip`.
+
+1. Extract the zip.
+2. Keep the `yt2mp3` folder and its `_internal` folder together.
+3. Run `yt2mp3.exe`. Downloads and local data are created next to the exe.
+4. Use **Quit yt2mp3** in the sidebar to stop the local server.
+
+The exe is unsigned, so Windows SmartScreen may show a “Windows protected your
+PC” warning. Check `SHA256SUMS.txt` against the zip before running it.
+
+## Quick start from source
 
 1. Double-click `setup.bat` once. It creates a `.venv` folder and installs the dependencies.
 2. Double-click `start.bat`.
@@ -36,7 +50,7 @@ Turn on **Use my account**, pick the browser that is signed in to YouTube, and l
 
 ## Output
 
-By default, files go to `downloads\` inside this folder. Change **Save to** to any folder you can write to; use the folder button to pick one. The app creates the folder if it is missing.
+By default, files go to `downloads\` next to the app (or next to `yt2mp3.exe` when using the packaged build). Change **Save to** to any folder you can write to; use the folder button to pick one. The app creates the folder if it is missing.
 
 Filename template: the video title, sanitized for Windows. Existing files are not overwritten. A duplicate download may reuse the existing MP3.
 
@@ -78,6 +92,17 @@ $env:YT2MP3_NO_BROWSER = "1"
 
 The app binds to `127.0.0.1` only. API requests require a per-run token that is injected into the page, so another website cannot drive the local downloader through a simple cross-origin request.
 
+## Building the Windows exe
+
+1. Run `setup.bat` once.
+2. Run `build_exe.bat`.
+3. Collect `dist\yt2mp3\` or upload `dist\yt2mp3-windows-x64.zip`.
+
+The build is a PyInstaller **onedir** package, not onefile: the `_internal`
+folder keeps startup fast and avoids extracting FFmpeg to a temp directory on
+every launch. `build_exe.bat` copies FFmpeg, adds the icon and version
+metadata, includes the license notices, and writes `SHA256SUMS.txt`.
+
 Project layout:
 
 ```
@@ -86,9 +111,15 @@ templates/index.html   UI shell
 static/app.css         Styles
 static/app.js          UI behavior
 requirements.txt       Python dependencies
+requirements-build.txt PyInstaller/Pillow build dependencies
 setup.bat              One-time environment setup
-start.bat              Launch the app
+start.bat              Launch from source
 update.bat             Update yt-dlp
+build_exe.bat          Build the Windows package
+yt2mp3.spec            PyInstaller build definition
+assets/icon.ico        Application icon
+licenses/              GPL/FFmpeg license texts for binary releases
+dist/                  Build output (ignored by Git)
 LICENSE                MIT license
 THIRD_PARTY_NOTICES.md Dependency and FFmpeg licensing notes
 ```
@@ -101,9 +132,11 @@ profiles out of Git. Before pushing, confirm that `git status` does not list
 anything under `downloads/`, `data/`, `.venv/`, or `.chrome-*`. Never commit a
 `cookies.txt` file.
 
-The repo contains source only. If you later publish a packaged `.exe` with
-FFmpeg inside it, read [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) first:
-FFmpeg's license depends on the build.
+The repo contains source only. The release zip **does** contain a GPLv3
+FFmpeg binary, so it ships with `licenses/GPL-3.0.txt`, `licenses/FFMPEG-LICENSE.md`,
+and `licenses/FFMPEG_BUILD.txt`. Keep those files in any binary redistribution
+and review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before publishing a
+release.
 
 ## License
 

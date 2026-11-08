@@ -70,6 +70,7 @@
       libraryCount: $("#library-count"),
       openFolder: $("#open-folder-btn"),
       openOutput: $("#open-output-btn"),
+      quitApp: $("#quit-app-btn"),
       toastStack: $("#toast-stack"),
       footerStatus: $("#footer-status"),
     });
@@ -128,6 +129,7 @@
     els.browseBtn.addEventListener("click", pickFolder);
     els.openFolder.addEventListener("click", openOutputFolder);
     els.openOutput.addEventListener("click", openOutputFolder);
+    els.quitApp.addEventListener("click", quitApp);
     els.clearFinished.addEventListener("click", clearFinished);
 
     els.previewContent.addEventListener("click", (event) => {
@@ -755,6 +757,19 @@
   async function openOutputFolder() {
     try {
       await api("/api/open-output", { method: "POST", body: "{}" });
+    } catch (error) {
+      toast(error.message, "error");
+    }
+  }
+
+  async function quitApp() {
+    if (!window.confirm("Stop yt2mp3? The local app will close and this tab will stop working.")) {
+      return;
+    }
+    try {
+      await api("/api/quit", { method: "POST", body: "{}" });
+      toast("yt2mp3 is stopping. You can close this tab.", "success");
+      els.quitApp.disabled = true;
     } catch (error) {
       toast(error.message, "error");
     }

@@ -1,0 +1,24 @@
+Bundled FFmpeg build
+====================
+
+Binary:       ffmpeg.exe
+Version:      9.0.2-essentials_build-www.gyan.dev
+Build source: https://www.gyan.dev/ffmpeg/builds/
+Project:      https://ffmpeg.org/
+Source code:  https://github.com/FFmpeg/FFmpeg
+License:      GNU General Public License v3 (GPLv3)
+
+The binary was built with (among other options):
+
+    --enable-gpl
+    --enable-version3
+    --enable-libmp3lame
+
+This is a GPLv3 build. The GPLv3 text is in GPL-3.0.txt and FFmpeg's
+license information is in FFMPEG-LICENSE.md.
+
+The yt2mp3 source repository itself does not contain the FFmpeg binary or
+its source. Binary releases that include ffmpeg.exe redistribute FFmpeg and
+must comply with the GPL, including providing the corresponding source code
+or a valid written offer. The exact build information and source links above
+are included so redistributors can meet that obligation.

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import uuid
 import webbrowser
 from datetime import datetime, timezone
@@ -17,23 +18,43 @@ from queue import Queue
 from typing import Any
 from urllib.parse import urlparse
 
-import imageio_ffmpeg
 from flask import Flask, jsonify, render_template, request
 
 
 APP_NAME = "yt2mp3"
 APP_VERSION = "1.0.0"
-BASE_DIR = Path(__file__).resolve().parent
+IS_WINDOWS = os.name == "nt"
+IS_FROZEN = bool(getattr(sys, "frozen", False))
+
+if IS_FROZEN:
+    BASE_DIR = Path(sys.executable).resolve().parent
+    RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+    RESOURCE_DIR = BASE_DIR
+
 DATA_DIR = BASE_DIR / "data"
 DEFAULT_OUTPUT_DIR = BASE_DIR / "downloads"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 PORT = int(os.environ.get("YT2MP3_PORT", "8765"))
-IS_WINDOWS = os.name == "nt"
 CREATE_NO_WINDOW = 0x08000000 if IS_WINDOWS else 0
-FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
-PYTHON = sys.executable
 APP_TOKEN = os.environ.get("YT2MP3_TOKEN") or secrets.token_urlsafe(24)
+
+
+def resource_path(*parts: str) -> Path:
+    return RESOURCE_DIR.joinpath(*parts)
+
+
+def resolve_ffmpeg() -> str:
+    if IS_FROZEN:
+        return str(resource_path("bin", "ffmpeg.exe"))
+    import imageio_ffmpeg
+
+    return imageio_ffmpeg.get_ffmpeg_exe()
+
+
+FFMPEG_PATH = resolve_ffmpeg()
 
 QUALITY_CHOICES = {"320K", "256K", "192K", "128K", "0"}
 BROWSER_CHOICES = {"chrome", "edge", "firefox", "brave", "chromium", "opera", "vivaldi"}
@@ -56,6 +77,12 @@ DONE_PREFIX = "__DONE__"
 
 class UserError(Exception):
     """An error that is safe and useful to show in the UI."""
+
+
+def ytdlp_command() -> list[str]:
+    if IS_FROZEN:
+        return [sys.executable, "--ytdlp"]
+    return [sys.executable, "-m", "yt_dlp"]
 
 
 def now_iso() -> str:
@@ -186,10 +213,7 @@ def auth_args(use_account: bool, browser: str, profile: str, cookies_file: str) 
 
 
 def probe_url(url: str, playlist: bool, use_account: bool, browser: str, profile: str, cookies_file: str) -> dict[str, Any]:
-    command = [
-        PYTHON,
-        "-m",
-        "yt_dlp",
+    command = ytdlp_command() + [
         "--no-warnings",
         "--no-color",
         "--dump-single-json",
@@ -689,10 +713,7 @@ class JobManager:
     def _build_command(self, job_id: str) -> list[str]:
         with self.lock:
             job = self.jobs[job_id]
-            args = [
-                PYTHON,
-                "-m",
-                "yt_dlp",
+            args = ytdlp_command() + [
                 "--no-color",
                 "--newline",
                 "--progress",
@@ -1019,7 +1040,11 @@ class JobManager:
 
 
 manager = JobManager()
-app = Flask(__name__, static_folder="static", template_folder="templates")
+app = Flask(
+    __name__,
+    static_folder=str(RESOURCE_DIR / "static"),
+    template_folder=str(RESOURCE_DIR / "templates"),
+)
 app.config["JSON_SORT_KEYS"] = False
 
 
@@ -1052,6 +1077,25 @@ def index():
 @app.get("/api/health")
 def health():
     return jsonify({"ok": True, "name": APP_NAME, "version": APP_VERSION})
+
+
+@app.post("/api/quit")
+def quit_app():
+    with manager.lock:
+        active = [
+            job["id"]
+            for job in manager.jobs.values()
+            if job.get("status") in {"queued", "running"}
+        ]
+    if active:
+        return jsonify({"ok": False, "error": "Cancel active downloads before quitting."}), 409
+
+    def stop() -> None:
+        time.sleep(0.4)
+        os._exit(0)
+
+    threading.Thread(target=stop, name="yt2mp3-quit", daemon=True).start()
+    return jsonify({"ok": True})
 
 
 @app.get("/api/state")
@@ -1235,7 +1279,34 @@ def pick_folder():
         return jsonify({"ok": False, "error": f"The folder picker could not open: {exc}"}), 500
 
 
+def setup_frozen_logging() -> Path | None:
+    if not IS_FROZEN:
+        return None
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = DATA_DIR / "yt2mp3.log"
+        stream = open(log_path, "a", encoding="utf-8", buffering=1)
+        sys.stdout = stream
+        sys.stderr = stream
+        return log_path
+    except OSError:
+        return None
+
+
+def show_startup_error(message: str) -> None:
+    if IS_WINDOWS:
+        try:
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(0, message, APP_NAME, 0x10)
+            return
+        except Exception:
+            pass
+    print(message, file=sys.stderr)
+
+
 def main() -> None:
+    setup_frozen_logging()
     url = f"http://127.0.0.1:{PORT}"
     print()
     print(f"  {APP_NAME} {APP_VERSION}")
@@ -1254,4 +1325,25 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--ytdlp":
+        from yt_dlp import main as ytdlp_main
+
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        ytdlp_main()
+        raise SystemExit(0)
+
+    try:
+        main()
+    except Exception:
+        details = traceback.format_exc()
+        log_file = setup_frozen_logging()
+        if log_file:
+            try:
+                with open(log_file, "a", encoding="utf-8") as handle:
+                    handle.write(details + "\n")
+            except OSError:
+                pass
+        summary = details.strip().splitlines()[-1] if details.strip() else "Unknown error"
+        where = f"\n\nLog: {log_file}" if log_file else ""
+        show_startup_error(f"{APP_NAME} could not start.\n\n{summary}{where}")
+        raise

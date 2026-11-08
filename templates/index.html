@@ -30,6 +30,7 @@
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></symbol>
     <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></symbol>
     <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7Z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z" /></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9" /><path d="M6.4 6.4a8 8 0 1 0 11.2 0" /></symbol>
   </svg>
 
   <div class="shell">
@@ -56,6 +57,10 @@
         <button class="text-button" id="open-output-btn" type="button">
           <svg class="icon"><use href="#i-folder"></use></svg>
           Open downloads
+        </button>
+        <button class="text-button quit-button" id="quit-app-btn" type="button">
+          <svg class="icon"><use href="#i-power"></use></svg>
+          Quit yt2mp3
         </button>
         <span class="version">v{{ version }} · local</span>
       </div>

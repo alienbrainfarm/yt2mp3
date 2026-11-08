@@ -2,6 +2,11 @@
 .uv-cache/
 __pycache__/
 *.pyc
+build/
+dist/
+build_test/
+build_assets/bin/
+build_assets/tmp/
 downloads/
 data/settings.json
 data/history.json
