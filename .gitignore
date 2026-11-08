@@ -1,0 +1,13 @@
+.venv/
+.uv-cache/
+__pycache__/
+*.pyc
+downloads/
+data/settings.json
+data/history.json
+.chrome-*/
+.chrome-shot*/
+.chrome-cdp/
+ui-*.png
+.ui-test.mjs
+.ui-shot.mjs

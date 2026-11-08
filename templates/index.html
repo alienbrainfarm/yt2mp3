@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>yt2mp3 — YouTube to MP3</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}?v={{ version }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ version }}">
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-link" viewBox="0 0 24 24">
+      <path d="M10.6 13.4a4.5 4.5 0 0 0 6.36 0l2.83-2.83a4.5 4.5 0 0 0-6.36-6.36l-1.62 1.62" />
+      <path d="M13.4 10.6a4.5 4.5 0 0 0-6.36 0l-2.83 2.83a4.5 4.5 0 0 0 6.36 6.36l1.62-1.62" />
+    </symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" /></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l10-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="16" cy="16" r="3" /></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6" /></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7" /></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.9 2.4 17.4A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.6L13.7 3.9a2 2 0 0 0-3.4 0Z" /></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z" /></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7Z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z" /></symbol>
+  </svg>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#top" aria-label="yt2mp3 home">
+        <span class="brand-mark"><svg class="icon"><use href="#i-music"></use></svg></span>
+        <span class="brand-type"><strong>yt2mp3</strong><small>YouTube → MP3</small></span>
+      </a>
+
+      <nav class="side-nav" aria-label="Sections">
+        <a class="nav-link is-active" href="#capture"><span>01</span>Capture</a>
+        <a class="nav-link" href="#queue"><span>02</span>Queue</a>
+        <a class="nav-link" href="#library"><span>03</span>Library</a>
+      </nav>
+
+      <div class="side-rule"></div>
+
+      <div class="side-note">
+        <svg class="icon"><use href="#i-lock"></use></svg>
+        <p>Runs on this computer. Your links and cookies never leave it.</p>
+      </div>
+
+      <div class="sidebar-foot">
+        <button class="text-button" id="open-output-btn" type="button">
+          <svg class="icon"><use href="#i-folder"></use></svg>
+          Open downloads
+        </button>
+        <span class="version">v{{ version }} · local</span>
+      </div>
+    </aside>
+
+    <main class="main" id="top">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="kicker"><span class="live-dot"></span>Local audio workbench</p>
+          <h1>Keep the sound.<br><em>Lose the video.</em></h1>
+          <p class="lede">Paste a YouTube link, choose a bitrate, and yt2mp3 turns it into a tagged MP3 in your own folder. No uploads, no accounts required.</p>
+        </div>
+        <div class="hero-aside">
+          <div class="engine-pill" id="engine-pill">
+            <span class="engine-dot"></span>
+            <span id="engine-label">Checking engine</span>
+          </div>
+          <div class="stats">
+            <div class="stat">
+              <strong id="stat-files">0</strong>
+              <span>tracks saved</span>
+            </div>
+            <div class="stat">
+              <strong id="stat-size">0 MB</strong>
+              <span>in your library</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <section class="panel capture-panel" id="capture">
+          <div class="panel-head">
+            <div class="panel-title">
+              <span class="section-no">01</span>
+              <h2>Capture a track</h2>
+            </div>
+            <span class="mini-pill" id="probe-status">Waiting for a link</span>
+          </div>
+
+          <form class="url-form" id="url-form">
+            <div class="url-shell">
+              <svg class="icon url-icon"><use href="#i-link"></use></svg>
+              <input id="url-input" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a YouTube link or playlist…" aria-label="YouTube link">
+              <button class="paste-button" id="paste-btn" type="button">Paste</button>
+            </div>
+            <button class="primary-button" id="fetch-btn" type="submit">
+              <span class="button-label">Fetch audio</span>
+              <svg class="icon"><use href="#i-arrow"></use></svg>
+            </button>
+          </form>
+          <p class="hint">Videos, Shorts, YouTube Music, and playlists. Press <kbd>Enter</kbd> to fetch.</p>
+
+          <div class="preview" id="preview">
+            <div class="preview-empty" id="preview-empty">
+              <div class="waveform" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <p>Your next listen starts here. Drop in a link to preview the track before it lands in your library.</p>
+            </div>
+            <div class="preview-content" id="preview-content" hidden></div>
+          </div>
+
+          <div class="options">
+            <div class="option-grid">
+              <div class="field">
+                <label>MP3 bitrate</label>
+                <div class="segmented" id="quality-control" role="group" aria-label="MP3 bitrate">
+                  <button type="button" data-quality="320K" class="is-active">320</button>
+                  <button type="button" data-quality="256K">256</button>
+                  <button type="button" data-quality="192K">192</button>
+                  <button type="button" data-quality="128K">128</button>
+                  <button type="button" data-quality="0">Best</button>
+                </div>
+                <p class="field-note">kbps. “Best” uses variable bitrate.</p>
+              </div>
+              <div class="field">
+                <label for="output-dir">Save to</label>
+                <div class="path-row">
+                  <input id="output-dir" type="text" spellcheck="false" autocomplete="off" placeholder="Choose a folder">
+                  <button class="icon-button" id="browse-btn" type="button" title="Choose folder" aria-label="Choose folder">
+                    <svg class="icon"><use href="#i-folder"></use></svg>
+                  </button>
+                </div>
+                <p class="field-note">The folder is created if it does not exist.</p>
+              </div>
+            </div>
+
+            <div class="toggle-row">
+              <label class="toggle">
+                <input id="embed-metadata" type="checkbox">
+                <span class="switch"></span>
+                <span>ID3 tags</span>
+              </label>
+              <label class="toggle">
+                <input id="embed-thumbnail" type="checkbox">
+                <span class="switch"></span>
+                <span>Cover art</span>
+              </label>
+              <label class="toggle">
+                <input id="playlist" type="checkbox">
+                <span class="switch"></span>
+                <span>Full playlist</span>
+              </label>
+              <span class="toggle-hint">Tags use the video title, channel, and thumbnail.</span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel account-panel" id="account">
+          <div class="panel-head">
+            <div class="panel-title">
+              <span class="section-no">02</span>
+              <h2>Account</h2>
+            </div>
+            <span class="mini-pill">Optional</span>
+          </div>
+          <p class="panel-note">Use your own YouTube session for private, age-restricted, or members-only videos. Nothing is sent anywhere except to YouTube.</p>
+
+          <label class="switch-line" for="use-account">
+            <span class="switch-copy">
+              <strong>Use my account</strong>
+              <small>Read cookies from this computer</small>
+            </span>
+            <span class="switch-stack">
+              <input id="use-account" type="checkbox">
+              <span class="switch"></span>
+            </span>
+          </label>
+
+          <div class="account-fields" id="account-fields">
+            <div class="field">
+              <label for="browser">Browser</label>
+              <select id="browser">
+                <option value="chrome">Google Chrome</option>
+                <option value="edge">Microsoft Edge</option>
+                <option value="firefox">Mozilla Firefox</option>
+                <option value="brave">Brave</option>
+                <option value="chromium">Chromium</option>
+                <option value="opera">Opera</option>
+                <option value="vivaldi">Vivaldi</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="browser-profile">Profile <em>optional</em></label>
+              <input id="browser-profile" type="text" spellcheck="false" autocomplete="off" placeholder="Default">
+            </div>
+            <div class="field">
+              <label for="cookies-file">Or use a cookies.txt</label>
+              <input id="cookies-file" type="text" spellcheck="false" autocomplete="off" placeholder="C:\Users\you\cookies.txt">
+            </div>
+            <p class="privacy-note">
+              <svg class="icon"><use href="#i-lock"></use></svg>
+              Cookies are read locally when a job starts. If Chrome is open and the database is locked, close it and retry or use a cookies.txt file.
+            </p>
+          </div>
+
+          <div class="steps">
+            <p class="steps-title">How it works</p>
+            <ol>
+              <li><span>1</span>Fetch the link to check the title and length.</li>
+              <li><span>2</span>Add it to the queue with your quality and tag settings.</li>
+              <li><span>3</span>yt-dlp grabs the best audio, ffmpeg writes the MP3.</li>
+            </ol>
+          </div>
+        </aside>
+      </div>
+
+      <section class="panel queue-panel" id="queue">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="section-no">03</span>
+            <h2>Queue</h2>
+          </div>
+          <div class="head-actions">
+            <span class="mini-pill" id="queue-count">0 jobs</span>
+            <button class="text-button" id="clear-finished-btn" type="button">Clear finished</button>
+          </div>
+        </div>
+        <div class="queue-list" id="queue-list">
+          <div class="empty-row">
+            <svg class="icon"><use href="#i-list"></use></svg>
+            <p>Nothing queued yet. Fetch a link above to get started.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel library-panel" id="library">
+        <div class="panel-head">
+          <div class="panel-title">
+            <span class="section-no">04</span>
+            <h2>Recent files</h2>
+          </div>
+          <div class="head-actions">
+            <span class="mini-pill" id="library-count">0 files</span>
+            <button class="text-button" id="open-folder-btn" type="button">
+              <svg class="icon"><use href="#i-folder"></use></svg>
+              Open folder
+            </button>
+          </div>
+        </div>
+        <div class="library-grid" id="library-list">
+          <div class="empty-row">
+            <svg class="icon"><use href="#i-music"></use></svg>
+            <p>Finished MP3s will collect here.</p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>yt2mp3 runs entirely on your machine. Only download content you own or have permission to use; YouTube’s terms may restrict downloading.</p>
+        <p class="footer-meta"><span id="footer-status">Local engine ready</span> · yt-dlp + ffmpeg</p>
+      </footer>
+    </main>
+  </div>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+  <script>window.APP_TOKEN = {{ token|tojson }};</script>
+  <script src="{{ url_for('static', filename='app.js') }}?v={{ version }}"></script>
+</body>
+</html>
