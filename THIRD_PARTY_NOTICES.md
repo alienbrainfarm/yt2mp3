@@ -9,7 +9,7 @@ direct dependencies and the main licensing points for a public source release.
 | Flask | BSD-3-Clause | https://github.com/pallets/flask |
 | imageio-ffmpeg | BSD-2-Clause | https://github.com/imageio/imageio-ffmpeg |
 | Waitress | ZPL-2.1 | https://github.com/Pylons/waitress |
-| FFmpeg | GPLv3 for the bundled build | https://ffmpeg.org/legal.html |
+| FFmpeg | GPLv3 for the Windows build; verify each platform build | https://ffmpeg.org/legal.html |
 | mutagen (yt-dlp default extra) | GPL-2.0-or-later | https://github.com/quodlibet/mutagen |
 | pycryptodomex (yt-dlp default extra) | BSD-2-Clause / public domain | https://github.com/Legrandin/pycryptodome |
 | requests (yt-dlp default extra) | Apache-2.0 | https://github.com/psf/requests |

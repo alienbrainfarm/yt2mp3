@@ -22,7 +22,7 @@ from flask import Flask, jsonify, render_template, request
 
 
 APP_NAME = "yt2mp3"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 IS_WINDOWS = os.name == "nt"
 IS_FROZEN = bool(getattr(sys, "frozen", False))
 
@@ -33,13 +33,32 @@ else:
     BASE_DIR = Path(__file__).resolve().parent
     RESOURCE_DIR = BASE_DIR
 
-DATA_DIR = BASE_DIR / "data"
-DEFAULT_OUTPUT_DIR = BASE_DIR / "downloads"
+
+def app_data_dir() -> Path:
+    if not IS_FROZEN:
+        return BASE_DIR / "data"
+    if IS_WINDOWS:
+        return BASE_DIR / "data"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "yt2mp3"
+    xdg_data = os.environ.get("XDG_DATA_HOME")
+    return (Path(xdg_data) if xdg_data else Path.home() / ".local" / "share") / "yt2mp3"
+
+
+def app_output_dir() -> Path:
+    if not IS_FROZEN or IS_WINDOWS:
+        return BASE_DIR / "downloads"
+    return Path.home() / "Downloads" / "yt2mp3"
+
+
+DATA_DIR = app_data_dir()
+DEFAULT_OUTPUT_DIR = app_output_dir()
 SETTINGS_FILE = DATA_DIR / "settings.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 PORT = int(os.environ.get("YT2MP3_PORT", "8765"))
 CREATE_NO_WINDOW = 0x08000000 if IS_WINDOWS else 0
 APP_TOKEN = os.environ.get("YT2MP3_TOKEN") or secrets.token_urlsafe(24)
+FFMPEG_NAME = "ffmpeg.exe" if IS_WINDOWS else "ffmpeg"
 
 
 def resource_path(*parts: str) -> Path:
@@ -48,7 +67,7 @@ def resource_path(*parts: str) -> Path:
 
 def resolve_ffmpeg() -> str:
     if IS_FROZEN:
-        return str(resource_path("bin", "ffmpeg.exe"))
+        return str(resource_path("bin", FFMPEG_NAME))
     import imageio_ffmpeg
 
     return imageio_ffmpeg.get_ffmpeg_exe()
@@ -163,7 +182,7 @@ def ensure_output_dir(value: str) -> Path:
         raise UserError("Choose an output folder.")
     path = Path(raw).expanduser()
     if not path.is_absolute():
-        path = BASE_DIR / path
+        path = (BASE_DIR if not IS_FROZEN or IS_WINDOWS else Path.home()) / path
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -1175,7 +1194,7 @@ def clear_history():
 def allowed_path(raw_path: str) -> Path:
     path = Path(str(raw_path or "")).expanduser()
     if not path.is_absolute():
-        path = BASE_DIR / path
+        path = (BASE_DIR if not IS_FROZEN or IS_WINDOWS else Path.home()) / path
     try:
         path = path.resolve()
     except OSError as exc:
@@ -1256,27 +1275,76 @@ _dialog_lock = threading.Lock()
 
 @app.post("/api/pick-folder")
 def pick_folder():
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-    except Exception:
-        return jsonify({"ok": False, "error": "The folder picker is not available. Type a path instead."}), 400
-
     initial = manager.settings["output_dir"]
     if not Path(initial).is_dir():
-        initial = str(BASE_DIR)
-    try:
-        with _dialog_lock:
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            selected = filedialog.askdirectory(parent=root, initialdir=initial, title="Choose where MP3s are saved")
-            root.destroy()
+        initial = str(Path.home())
+
+    if IS_WINDOWS:
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+        except Exception:
+            return jsonify({"ok": False, "error": "The folder picker is not available. Type a path instead."}), 400
+        try:
+            with _dialog_lock:
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                selected = filedialog.askdirectory(
+                    parent=root,
+                    initialdir=initial,
+                    title="Choose where MP3s are saved",
+                )
+                root.destroy()
+        except Exception as exc:
+            return jsonify({"ok": False, "error": f"The folder picker could not open: {exc}"}), 500
         if not selected:
             return jsonify({"ok": False, "canceled": True})
         return jsonify({"ok": True, "path": selected})
-    except Exception as exc:
+
+    if sys.platform == "darwin":
+        safe_initial = initial.replace("\\", "\\\\").replace('"', '\\"')
+        script = (
+            'POSIX path of (choose folder with prompt "Choose where MP3s are saved" '
+            f'default location POSIX file "{safe_initial}")'
+        )
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return jsonify({"ok": False, "error": f"The folder picker could not open: {exc}"}), 500
+        if result.returncode != 0:
+            if "cancel" in (result.stderr or "").lower() or result.returncode == 1:
+                return jsonify({"ok": False, "canceled": True})
+            return jsonify({"ok": False, "error": "The folder picker was closed."}), 400
+        selected = result.stdout.strip()
+        return jsonify({"ok": True, "path": selected}) if selected else jsonify({"ok": False, "canceled": True})
+
+    if shutil.which("zenity"):
+        command = [
+            "zenity",
+            "--file-selection",
+            "--directory",
+            f"--filename={initial.rstrip('/')}/",
+            "--title=Choose where MP3s are saved",
+        ]
+    elif shutil.which("kdialog"):
+        command = ["kdialog", "--getexistingdirectory", initial, "--title", "Choose where MP3s are saved"]
+    else:
+        return jsonify({"ok": False, "error": "Install zenity or kdialog to use the folder picker, or type a path."}), 400
+
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=180)
+    except (OSError, subprocess.SubprocessError) as exc:
         return jsonify({"ok": False, "error": f"The folder picker could not open: {exc}"}), 500
+    if result.returncode != 0:
+        return jsonify({"ok": False, "canceled": True})
+    selected = result.stdout.strip()
+    return jsonify({"ok": True, "path": selected}) if selected else jsonify({"ok": False, "canceled": True})
 
 
 def setup_frozen_logging() -> Path | None:

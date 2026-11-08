@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "icon.ico"
+ICNS = ROOT / "assets" / "icon.icns"
 SIZE = 256
 SCALE = 4
 
@@ -53,7 +54,9 @@ def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     icon = draw_icon()
     icon.save(OUT, format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    icon.save(ICNS, format="ICNS")
     print(f"wrote {OUT}")
+    print(f"wrote {ICNS}")
 
 
 if __name__ == "__main__":

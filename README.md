@@ -1,6 +1,6 @@
 # yt2mp3 — YouTube to MP3
 
-A small, local Windows app that turns YouTube links into tagged MP3 files. Paste a link, check the preview, pick a bitrate, and queue it. Everything runs on your computer; there is no hosted service and no upload step.
+A small, local app that turns YouTube links into tagged MP3 files. Paste a link, check the preview, pick a bitrate, and queue it. Everything runs on your computer; there is no hosted service and no upload step. Packaged builds are available for Windows, macOS, and Linux.
 
 ![yt2mp3 interface](screenshot.png)
 
@@ -17,19 +17,42 @@ A small, local Windows app that turns YouTube links into tagged MP3 files. Paste
 
 The heavy lifting is done by [yt-dlp](https://github.com/yt-dlp/yt-dlp) and a bundled ffmpeg binary from `imageio-ffmpeg`. There is no system-wide ffmpeg install required.
 
-## Windows executable
+## Packaged builds
 
-Download the latest build from
-[GitHub Releases](https://github.com/alienbrainfarm/yt2mp3/releases/latest), or
-build it locally with `build_exe.bat` and use `dist\yt2mp3-windows-x64.zip`.
+Download the latest builds from
+[GitHub Releases](https://github.com/alienbrainfarm/yt2mp3/releases/latest).
+Builds are produced on native GitHub runners by
+[the build workflow](.github/workflows/build.yml).
 
-1. Extract the zip.
+### Windows
+
+1. Extract `yt2mp3-windows-x64.zip`.
 2. Keep the `yt2mp3` folder and its `_internal` folder together.
 3. Run `yt2mp3.exe`. Downloads and local data are created next to the exe.
 4. Use **Quit yt2mp3** in the sidebar to stop the local server.
 
-The exe is unsigned, so Windows SmartScreen may show a “Windows protected your
-PC” warning. Check `SHA256SUMS.txt` against the zip before running it.
+Windows SmartScreen may warn because the exe is unsigned. Check
+`SHA256SUMS.txt` against the archive before running it.
+
+### macOS
+
+1. Extract `yt2mp3-macos-arm64.zip` (Apple Silicon) or
+   `yt2mp3-macos-x86_64.zip` (Intel).
+2. Drag `yt2mp3.app` into Applications.
+3. If Gatekeeper blocks it, right-click the app and choose **Open**, or run
+   `xattr -dr com.apple.quarantine /Applications/yt2mp3.app`.
+
+The app is not notarized. Data lives in
+`~/Library/Application Support/yt2mp3`; MP3s default to `~/Downloads/yt2mp3`.
+
+### Linux
+
+1. Extract `yt2mp3-linux-x86_64.tar.gz`.
+2. Run `./yt2mp3/yt2mp3` from the extracted folder.
+
+Data lives in `~/.local/share/yt2mp3`; MP3s default to `~/Downloads/yt2mp3`.
+The folder picker uses `zenity` or `kdialog` when available; otherwise type
+the path directly.
 
 ## Quick start from source
 
@@ -92,16 +115,19 @@ $env:YT2MP3_NO_BROWSER = "1"
 
 The app binds to `127.0.0.1` only. API requests require a per-run token that is injected into the page, so another website cannot drive the local downloader through a simple cross-origin request.
 
-## Building the Windows exe
+## Building packages
 
-1. Run `setup.bat` once.
-2. Run `build_exe.bat`.
-3. Collect `dist\yt2mp3\` or upload `dist\yt2mp3-windows-x64.zip`.
+- Windows: run `build_exe.bat` after `setup.bat`.
+- macOS / Linux: run `python build.py` in a prepared environment.
 
 The build is a PyInstaller **onedir** package, not onefile: the `_internal`
 folder keeps startup fast and avoids extracting FFmpeg to a temp directory on
-every launch. `build_exe.bat` copies FFmpeg, adds the icon and version
-metadata, includes the license notices, and writes `SHA256SUMS.txt`.
+every launch. `build.py` copies the platform FFmpeg, generates the icon,
+adds the license notices, creates the platform archive, and writes
+`SHA256SUMS.txt`.
+
+The GitHub Actions workflow builds Windows x64, Linux x86_64, macOS arm64, and
+macOS x86_64. Tagged pushes (`v*`) also upload all archives to a release.
 
 Project layout:
 
@@ -115,9 +141,11 @@ requirements-build.txt PyInstaller/Pillow build dependencies
 setup.bat              One-time environment setup
 start.bat              Launch from source
 update.bat             Update yt-dlp
-build_exe.bat          Build the Windows package
+build_exe.bat          Windows build convenience wrapper
+build.py               Cross-platform PyInstaller/package builder
 yt2mp3.spec            PyInstaller build definition
-assets/icon.ico        Application icon
+assets/icon.ico        Windows application icon
+assets/icon.icns       macOS application icon
 licenses/              GPL/FFmpeg license texts for binary releases
 dist/                  Build output (ignored by Git)
 LICENSE                MIT license

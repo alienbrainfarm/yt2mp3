@@ -14,12 +14,12 @@ VSVersionInfo(
       StringTable('040904B0', [
         StringStruct('CompanyName', 'yt2mp3'),
         StringStruct('FileDescription', 'yt2mp3 - YouTube to MP3'),
-        StringStruct('FileVersion', '1.0.0'),
+        StringStruct('FileVersion', '1.0.1'),
         StringStruct('InternalName', 'yt2mp3'),
         StringStruct('LegalCopyright', 'Copyright (c) 2026 yt2mp3 contributors'),
         StringStruct('OriginalFilename', 'yt2mp3.exe'),
         StringStruct('ProductName', 'yt2mp3'),
-        StringStruct('ProductVersion', '1.0.0')
+        StringStruct('ProductVersion', '1.0.1')
       ])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])

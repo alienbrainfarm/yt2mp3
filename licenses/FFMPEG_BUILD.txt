@@ -1,24 +1,29 @@
-Bundled FFmpeg build
-====================
+Bundled FFmpeg builds
+=====================
 
-Binary:       ffmpeg.exe
-Version:      9.0.2-essentials_build-www.gyan.dev
-Build source: https://www.gyan.dev/ffmpeg/builds/
+The packaged releases include a platform FFmpeg binary from
+imageio-ffmpeg's pinned builds. The build names used by imageio-ffmpeg 0.8.1
+are:
+
+    Windows x86_64:  ffmpeg-win-x86_64-v9.0.2.exe   (gyan.dev)
+    macOS arm64:     ffmpeg-macos-aarch64-v9.0       (osxexperts)
+    macOS x86_64:    ffmpeg-macos-x86_64-v9.0.2      (evermeet.cx)
+    Linux x86_64:    ffmpeg-linux-x86_64-v9.0.2      (BtbN)
+
+The Windows build is the gyan.dev "essentials" build and was compiled with
+--enable-gpl --enable-version3 --enable-libmp3lame. The other platform builds
+include MP3 encoding support as packaged by imageio-ffmpeg. Check the exact
+build configuration for the platform you redistribute.
+
 Project:      https://ffmpeg.org/
 Source code:  https://github.com/FFmpeg/FFmpeg
-License:      GNU General Public License v3 (GPLv3)
+Build source: https://www.gyan.dev/ffmpeg/builds/
+              https://github.com/BtbN/FFmpeg-Builds
+              https://evermeet.cx/ffmpeg/
+              https://www.osxexperts.net/
 
-The binary was built with (among other options):
-
-    --enable-gpl
-    --enable-version3
-    --enable-libmp3lame
-
-This is a GPLv3 build. The GPLv3 text is in GPL-3.0.txt and FFmpeg's
-license information is in FFMPEG-LICENSE.md.
-
-The yt2mp3 source repository itself does not contain the FFmpeg binary or
-its source. Binary releases that include ffmpeg.exe redistribute FFmpeg and
-must comply with the GPL, including providing the corresponding source code
-or a valid written offer. The exact build information and source links above
-are included so redistributors can meet that obligation.
+License texts are in GPL-3.0.txt and FFMPEG-LICENSE.md. FFmpeg's license
+depends on the build; the Windows build is GPLv3. The yt2mp3 source repository
+does not contain FFmpeg. Binary releases that include ffmpeg must comply with
+the GPL, including providing the corresponding source code or a valid written
+offer. The links above are included so redistributors can meet that obligation.
