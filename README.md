@@ -24,6 +24,13 @@ Download the latest builds from
 Builds are produced on native GitHub runners by
 [the build workflow](.github/workflows/build.yml).
 
+| Platform | Download |
+| --- | --- |
+| Windows x64 | [yt2mp3-windows-x64.zip](https://github.com/alienbrainfarm/yt2mp3/releases/latest/download/yt2mp3-windows-x64.zip) |
+| macOS Apple Silicon | [yt2mp3-macos-arm64.zip](https://github.com/alienbrainfarm/yt2mp3/releases/latest/download/yt2mp3-macos-arm64.zip) |
+| macOS Intel | [yt2mp3-macos-x86_64.zip](https://github.com/alienbrainfarm/yt2mp3/releases/latest/download/yt2mp3-macos-x86_64.zip) |
+| Linux x86_64 | [yt2mp3-linux-x86_64.tar.gz](https://github.com/alienbrainfarm/yt2mp3/releases/latest/download/yt2mp3-linux-x86_64.tar.gz) |
+
 ### Windows
 
 1. Extract `yt2mp3-windows-x64.zip`.
