@@ -4,7 +4,7 @@ A small, local Windows app that turns YouTube links into tagged MP3 files. Paste
 
 ![yt2mp3 interface](screenshot.png)
 
-*Screenshot uses the Big Buck Bunny thumbnail © Blender Foundation, CC BY 3.0.*
+*Screenshot uses the Big Buck Bunny thumbnail © Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).*
 
 ## What it does
 
