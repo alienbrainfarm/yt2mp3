@@ -46,11 +46,29 @@ Windows SmartScreen may warn because the exe is unsigned. Check
 1. Extract `yt2mp3-macos-arm64.zip` (Apple Silicon) or
    `yt2mp3-macos-x86_64.zip` (Intel).
 2. Drag `yt2mp3.app` into Applications.
-3. If Gatekeeper blocks it, right-click the app and choose **Open**, or run
-   `xattr -dr com.apple.quarantine /Applications/yt2mp3.app`.
+3. The app is unsigned and not notarized, so Gatekeeper will normally block
+   the first launch. Right-click the app and choose **Open**, or use Terminal:
 
-The app is not notarized. Data lives in
-`~/Library/Application Support/yt2mp3`; MP3s default to `~/Downloads/yt2mp3`.
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/yt2mp3.app
+   open /Applications/yt2mp3.app
+   ```
+
+   On newer macOS versions, **System Settings → Privacy & Security → Open
+   Anyway** may be the only GUI path.
+
+   If macOS still says the app is damaged, re-sign it locally:
+
+   ```bash
+   codesign --force --deep --sign - /Applications/yt2mp3.app
+   xattr -dr com.apple.quarantine /Applications/yt2mp3.app
+   ```
+
+   Do not disable Gatekeeper globally. The permanent fix is a Developer ID
+   certificate plus Apple notarization.
+
+Data lives in `~/Library/Application Support/yt2mp3`; MP3s default to
+`~/Downloads/yt2mp3`.
 
 ### Linux
 
