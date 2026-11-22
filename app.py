@@ -106,10 +106,55 @@ class UserError(Exception):
         self.public_message = public_message
 
 
+def configured_path_roots() -> tuple[str, ...]:
+    """Read trusted locations at startup, never from HTTP settings or history."""
+    roots = [str(Path.home()), str(BASE_DIR)]
+    for value in os.environ.get("YT2MP3_ALLOWED_ROOTS", "").split(os.pathsep):
+        if value.strip():
+            root = os.path.expanduser(value.strip())
+            if not os.path.isabs(root):
+                raise ValueError("YT2MP3_ALLOWED_ROOTS entries must be absolute paths.")
+            roots.append(root)
+    return tuple(dict.fromkeys(os.path.normcase(os.path.realpath(root)) for root in roots))
+
+
+ALLOWED_PATH_ROOTS = configured_path_roots()
+
+
+def validated_local_path(value: str) -> Path:
+    """Resolve a UI path and enforce the startup filesystem allowlist."""
+    raw = str(value or "").strip()
+    if not raw or any(ord(char) < 32 or ord(char) == 127 for char in raw):
+        raise UserError("Enter a valid local path.")
+    if raw == "~":
+        raw = str(Path.home())
+    elif raw.startswith("~/") or (IS_WINDOWS and raw.startswith("~\\")):
+        raw = os.path.join(str(Path.home()), raw[2:])
+    elif raw.startswith("~"):
+        raise UserError("Use an absolute path or ~ for your own home folder.")
+    if os.path.splitdrive(raw)[0] and not os.path.isabs(raw):
+        raise UserError("Use a full absolute path, including the drive root.")
+    if not os.path.isabs(raw):
+        base = BASE_DIR if not IS_FROZEN or IS_WINDOWS else Path.home()
+        raw = os.path.join(str(base), raw)
+    try:
+        normalized = os.path.normcase(os.path.realpath(raw))
+    except (OSError, ValueError) as exc:
+        raise UserError("That path could not be resolved.") from exc
+    for root in ALLOWED_PATH_ROOTS:
+        if normalized == root:
+            return Path(root)
+        # Include the separator so /allowed-other never matches /allowed.
+        # realpath resolves both .. and existing symlinks before this check.
+        if normalized.startswith(root.rstrip(os.sep) + os.sep):
+            return Path(normalized)
+    raise UserError("That path is outside the allowed folders. Choose a home or app folder, or configure YT2MP3_ALLOWED_ROOTS before starting the app.")
+
+
 def ytdlp_command() -> list[str]:
     if IS_FROZEN:
-        return [sys.executable, "--ytdlp"]
-    return [sys.executable, "-m", "yt_dlp"]
+        return [sys.executable, "--ytdlp", "--ignore-config"]
+    return [sys.executable, "-m", "yt_dlp", "--ignore-config"]
 
 
 def now_iso() -> str:
@@ -188,9 +233,7 @@ def ensure_output_dir(value: str) -> Path:
     raw = (value or "").strip()
     if not raw:
         raise UserError("Choose an output folder.")
-    path = Path(raw).expanduser()
-    if not path.is_absolute():
-        path = (BASE_DIR if not IS_FROZEN or IS_WINDOWS else Path.home()) / path
+    path = validated_local_path(raw)
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -225,10 +268,10 @@ def save_json(path: Path, data: Any) -> None:
 def auth_args(use_account: bool, browser: str, profile: str, cookies_file: str) -> list[str]:
     cookie_path = (cookies_file or "").strip()
     if cookie_path:
-        path = Path(cookie_path).expanduser()
+        path = validated_local_path(cookie_path)
         if not path.is_file():
             raise UserError("The cookies file could not be found. Check the path in Account settings.")
-        return ["--cookies", str(path)]
+        return ["--cookies=" + str(path)]
     if use_account:
         selected = (browser or "chrome").strip().lower()
         if selected not in BROWSER_CHOICES:
@@ -236,12 +279,17 @@ def auth_args(use_account: bool, browser: str, profile: str, cookies_file: str) 
         spec = selected
         profile_name = (profile or "").strip()
         if profile_name:
+            if any(char in profile_name for char in ("/", "\\")) or profile_name.startswith("~"):
+                profile_name = str(validated_local_path(profile_name))
+            elif profile_name in {".", ".."} or not re.fullmatch(r"[\w .-]+", profile_name):
+                raise UserError("Use a browser profile name or a path inside the allowed folders.")
             spec += ":" + profile_name
-        return ["--cookies-from-browser", spec]
+        return ["--cookies-from-browser=" + spec]
     return []
 
 
 def probe_url(url: str, playlist: bool, use_account: bool, browser: str, profile: str, cookies_file: str) -> dict[str, Any]:
+    url = normalize_url(url)
     command = ytdlp_command() + [
         "--no-warnings",
         "--no-color",
@@ -255,7 +303,7 @@ def probe_url(url: str, playlist: bool, use_account: bool, browser: str, profile
     else:
         command += ["--no-playlist"]
     command += auth_args(use_account, browser, profile, cookies_file)
-    command.append(url)
+    command += ["--", url]
 
     try:
         result = subprocess.run(
@@ -329,7 +377,7 @@ def probe_url(url: str, playlist: bool, use_account: bool, browser: str, profile
 class JobManager:
     def __init__(self) -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
-        DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        ensure_output_dir(str(DEFAULT_OUTPUT_DIR))
         self.lock = threading.RLock()
         self.jobs: dict[str, dict[str, Any]] = {}
         self.order: list[str] = []
@@ -662,7 +710,13 @@ class JobManager:
 
         temp_dir = output_dir / ".yt2mp3-tmp" / job_id
         try:
+            checked_temp_dir = validated_local_path(str(temp_dir))
+            if checked_temp_dir != temp_dir:
+                raise UserError("The temporary download folder must not redirect through a symlink.")
             temp_dir.mkdir(parents=True, exist_ok=True)
+        except UserError as exc:
+            self._fail(job_id, exc.public_message)
+            return
         except OSError:
             logger.exception("Could not create a temporary download folder")
             self._fail(job_id, "Could not create a temporary download folder. Check the output folder permissions.")
@@ -794,7 +848,7 @@ class JobManager:
                 str(job["browser_profile"]),
                 str(job["cookies_file"]),
             )
-            args.append(job["url"])
+            args += ["--", normalize_url(job["url"])]
             return args
 
     def _handle_line(self, job_id: str, line: str) -> None:
@@ -913,18 +967,26 @@ class JobManager:
 
     def _unique_target(self, output_dir: Path, name: str) -> Path:
         target = output_dir / name
-        if not target.exists():
+        if not os.path.lexists(target):
             return target
         stem = target.stem
         suffix = target.suffix
         for index in range(2, 1000):
             candidate = output_dir / f"{stem} ({index}){suffix}"
-            if not candidate.exists():
+            if not os.path.lexists(candidate):
                 return candidate
-        return output_dir / f"{stem} ({uuid.uuid4().hex[:6]}){suffix}"
+        candidate = output_dir / f"{stem} ({uuid.uuid4().hex[:6]}){suffix}"
+        if os.path.lexists(candidate):
+            raise UserError("Could not choose an unused output filename. Try another output folder.")
+        return candidate
 
     def _cleanup_stale_temp_dirs(self) -> None:
         root = Path(self.settings["output_dir"]) / ".yt2mp3-tmp"
+        try:
+            if validated_local_path(str(root)) != root:
+                return
+        except UserError:
+            return
         if not root.is_dir():
             return
         cutoff = time.time() - 86400
@@ -947,6 +1009,11 @@ class JobManager:
         if not temp_dir:
             return
         path = Path(temp_dir)
+        try:
+            if validated_local_path(temp_dir) != path:
+                return
+        except UserError:
+            return
         shutil.rmtree(path, ignore_errors=True)
         try:
             path.parent.rmdir()
@@ -974,12 +1041,23 @@ class JobManager:
             title = job.get("title") or ""
 
         resolved: list[Path] = []
+        try:
+            output_dir = validated_local_path(str(output_dir))
+            temp_root = validated_local_path(str(temp_dir))
+        except UserError as exc:
+            self._fail(job_id, exc.public_message)
+            return
         for raw in paths:
-            source = Path(raw)
-            if not source.is_file():
-                continue
-            target = output_dir / source.name
             try:
+                source = validated_local_path(raw)
+                if not source.is_relative_to(temp_root) or not source.is_file():
+                    continue
+                target = output_dir / source.name
+                # Never reuse or replace an existing link, including a dangling
+                # one. It may point outside the approved download location.
+                if target.is_symlink() or (target.exists() and not target.is_file()):
+                    target = self._unique_target(output_dir, source.name)
+                target = validated_local_path(str(target))
                 if target.exists() and target.stat().st_size == source.stat().st_size:
                     source.unlink(missing_ok=True)
                 else:
@@ -987,7 +1065,7 @@ class JobManager:
                         target = self._unique_target(output_dir, source.name)
                     shutil.move(str(source), str(target))
                 resolved.append(target.resolve())
-            except OSError:
+            except (OSError, UserError):
                 continue
 
         self._remove_temp_tree(str(temp_dir or ""))
@@ -1208,13 +1286,7 @@ def clear_history():
 
 
 def allowed_path(raw_path: str) -> Path:
-    path = Path(str(raw_path or "")).expanduser()
-    if not path.is_absolute():
-        path = (BASE_DIR if not IS_FROZEN or IS_WINDOWS else Path.home()) / path
-    try:
-        path = path.resolve()
-    except OSError as exc:
-        raise UserError("That path could not be resolved.") from exc
+    path = validated_local_path(raw_path)
 
     roots = []
     try:

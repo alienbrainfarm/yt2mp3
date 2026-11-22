@@ -42,10 +42,14 @@ It is not designed to be exposed to a LAN, the public internet, or multiple
 untrusted users through a proxy or tunnel.
 
 The application runs with the permissions of the operating-system account that
-starts it. Selecting an output folder or a cookies file intentionally gives it
-access to that location. Account mode allows yt-dlp to read the selected local
-browser's cookies. The application is not a sandbox for untrusted local
-programs.
+starts it. Output folders, cookies files, and custom browser-profile paths are
+restricted to the home and app folders, plus absolute locations explicitly set
+in `YT2MP3_ALLOWED_ROOTS` before startup. API requests cannot extend that list.
+Resolved paths, including symlink targets, must remain within those locations.
+Open/reveal is further restricted to download folders. Account mode allows
+yt-dlp to read the selected local browser's cookies. External yt-dlp configuration
+files are ignored. The application is not a sandbox for untrusted local programs
+that can change files or symlinks concurrently.
 
 Reports about bypassing the local API protections, unintended file access,
 command execution, exposure of account data, malicious media or metadata, and

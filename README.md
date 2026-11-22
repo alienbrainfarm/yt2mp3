@@ -98,7 +98,34 @@ Turn on **Use my account**, pick the browser that is signed in to YouTube, and l
 
 ## Output
 
-By default, files go to `downloads\` next to the app (or next to `yt2mp3.exe` when using the packaged build). Change **Save to** to any folder you can write to; use the folder button to pick one. The app creates the folder if it is missing.
+By default, files go to `downloads\` next to the app (or next to `yt2mp3.exe` when using the packaged build). Change **Save to** to a writable folder inside your home or app folder; use the folder button to pick one. The app creates the folder if it is missing.
+
+Output folders, cookies files, and custom browser-profile paths must be inside
+your home folder, the app folder, or an explicitly allowed extra location.
+Paths are resolved before checking, including `..` and symlinks. A browser
+profile name such as `Profile 1` still works without a full path.
+
+To allow an external disk or another location, set `YT2MP3_ALLOWED_ROOTS` before
+starting the app. Use absolute paths, separated by `:` on macOS/Linux or `;` on
+Windows. For example:
+
+```bash
+export YT2MP3_ALLOWED_ROOTS="/Volumes/Music:/mnt/audio"
+python app.py
+```
+
+```powershell
+$env:YT2MP3_ALLOWED_ROOTS = "D:\Music;E:\Audio"
+.\.venv\Scripts\python.exe app.py
+```
+
+The same variable applies to packaged builds launched from that terminal.
+Restart the app after changing it. API settings cannot extend these permissions;
+previously saved locations outside them must be allowed explicitly or changed.
+Open/reveal remains limited to download folders within these allowed locations.
+
+yt2mp3 passes its own options to yt-dlp and ignores external yt-dlp configuration
+files. Configure downloads through the app's controls.
 
 Filename template: the video title, sanitized for Windows. Existing files are not overwritten. A duplicate download may reuse the existing MP3.
 
@@ -140,7 +167,7 @@ $env:YT2MP3_NO_BROWSER = "1"
 
 The app binds to `127.0.0.1` only. API requests require a per-run token that is injected into the page, so another website cannot drive the local downloader through a simple cross-origin request.
 
-Run the error-response regression tests in an environment with the dependencies
+Run the security regression tests in an environment with the dependencies
 from `requirements.txt` installed:
 
 ```bash
