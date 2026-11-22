@@ -21,7 +21,7 @@ class InputBoundaryTests(AppTestCase):
         self.outside_temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.outside_temp.cleanup)
         self.outside = Path(self.outside_temp.name).resolve()
-        roots = patch.object(self.module, "ALLOWED_PATH_ROOTS", (str(self.root),), create=True)
+        roots = patch.object(self.module, "ALLOWED_PATH_ROOTS", (os.path.normcase(str(self.root)),), create=True)
         roots.start()
         self.addCleanup(roots.stop)
 
@@ -49,13 +49,13 @@ class InputBoundaryTests(AppTestCase):
         self.assertTrue(folder.is_dir())
 
     def test_extra_trusted_root_allows_external_location(self):
-        with patch.object(self.module, "ALLOWED_PATH_ROOTS", (str(self.root), str(self.outside)), create=True):
+        with patch.object(self.module, "ALLOWED_PATH_ROOTS", (os.path.normcase(str(self.root)), os.path.normcase(str(self.outside))), create=True):
             folder = self.module.ensure_output_dir(str(self.outside / "music"))
         self.assertTrue(folder.is_dir())
 
     def test_extra_roots_are_read_from_startup_environment(self):
         with patch.dict(os.environ, {"YT2MP3_ALLOWED_ROOTS": str(self.outside)}):
-            self.assertIn(str(self.outside), self.module.configured_path_roots())
+            self.assertIn(os.path.normcase(str(self.outside)), self.module.configured_path_roots())
         with patch.dict(os.environ, {"YT2MP3_ALLOWED_ROOTS": "relative/folder"}):
             with self.assertRaises(ValueError):
                 self.module.configured_path_roots()
@@ -80,9 +80,9 @@ class InputBoundaryTests(AppTestCase):
         cookies = self.root / "--exec=test.txt"
         cookies.write_text("# Netscape HTTP Cookie File\n")
         args = self.module.auth_args(False, "chrome", "", str(cookies))
-        self.assertEqual(args, ["--cookies=" + str(cookies)])
+        self.assertEqual(args, ["--cookies=" + os.path.normcase(str(cookies))])
         parsed = parse_options(["--ignore-config", *args, "--", "https://youtube.com/watch?v=test"])
-        self.assertEqual(parsed.ydl_opts["cookiefile"], str(cookies))
+        self.assertEqual(Path(parsed.ydl_opts["cookiefile"]), cookies)
         self.assertFalse(parsed.ydl_opts.get("exec_cmd"))
 
     def test_browser_profile_cannot_escape_allowed_roots_or_change_spec(self):

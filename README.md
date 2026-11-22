@@ -192,7 +192,9 @@ adds the license notices, creates the platform archive, and writes
 `SHA256SUMS.txt`.
 
 The GitHub Actions workflow builds Windows x64, Linux x86_64, macOS arm64, and
-macOS x86_64. Tagged pushes (`v*`) also upload all archives to a release.
+macOS x86_64. Tagged pushes (`v*`) upload all archives to a draft release after
+security regression tests and packaged-app smoke tests pass. Maintainers verify
+the assets and checksums before publishing the release.
 
 Project layout:
 
