@@ -96,8 +96,8 @@ if IS_MACOS:
         icon=str(icon_file) if icon_file.exists() else None,
         bundle_identifier="com.alienbrainfarm.yt2mp3",
         info_plist={
-            "CFBundleShortVersionString": "1.0.2",
-            "CFBundleVersion": "1.0.2",
+            "CFBundleShortVersionString": "1.0.3",
+            "CFBundleVersion": "1.0.3",
             "NSHighResolutionCapable": True,
         },
     )
