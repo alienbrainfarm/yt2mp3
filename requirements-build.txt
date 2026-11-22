@@ -1,2 +1,2 @@
-pyinstaller>=6.22,<7
+pyinstaller>=6.22.3,<7
 pillow>=13,<14
