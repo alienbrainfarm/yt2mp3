@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import secrets
@@ -19,6 +20,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request
+
+
+logger = logging.getLogger(__name__)
 
 
 APP_NAME = "yt2mp3"
@@ -95,7 +99,11 @@ DONE_PREFIX = "__DONE__"
 
 
 class UserError(Exception):
-    """An error that is safe and useful to show in the UI."""
+    """An explicitly authored UI message, never raw exception or process output."""
+
+    def __init__(self, public_message: str) -> None:
+        super().__init__(public_message)
+        self.public_message = public_message
 
 
 def ytdlp_command() -> list[str]:
@@ -146,7 +154,7 @@ def friendly_error(text: str) -> str:
         return "YouTube did not return the video page. Check the link, or turn on 'Use my account'."
     if not raw:
         return "yt-dlp failed without an error message."
-    return raw
+    return "The download failed. Check the link and account settings, or try updating yt-dlp."
 
 
 def normalize_url(value: str) -> str:
@@ -186,7 +194,8 @@ def ensure_output_dir(value: str) -> Path:
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        raise UserError(f"Could not create the output folder: {exc}") from exc
+        logger.exception("Could not create the output folder")
+        raise UserError("Could not create the output folder. Check its permissions and try again.") from exc
     if not path.is_dir():
         raise UserError("The output path is not a folder.")
     probe = path / f".yt2mp3-write-test-{uuid.uuid4().hex[:8]}"
@@ -194,7 +203,8 @@ def ensure_output_dir(value: str) -> Path:
         probe.write_text("", encoding="utf-8")
         probe.unlink()
     except OSError as exc:
-        raise UserError(f"The output folder is not writable: {exc}") from exc
+        logger.exception("Could not write to the output folder")
+        raise UserError("The output folder is not writable. Choose another folder or check its permissions.") from exc
     return path.resolve()
 
 
@@ -260,10 +270,12 @@ def probe_url(url: str, playlist: bool, use_account: bool, browser: str, profile
     except subprocess.TimeoutExpired as exc:
         raise UserError("YouTube took too long to answer. Check the link and try again.") from exc
     except OSError as exc:
-        raise UserError(f"Could not start yt-dlp: {exc}") from exc
+        logger.exception("Could not start yt-dlp")
+        raise UserError("Could not start yt-dlp. Check the installation and try again.") from exc
 
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip()
+        logger.error("yt-dlp inspection failed: %s", message)
         raise UserError(friendly_error(message))
 
     try:
@@ -456,7 +468,6 @@ class JobManager:
             "item_index": 0,
             "item_count": 0,
             "path": "",
-            "error_detail": "",
             "cancel_requested": False,
             "use_account": options["use_account"],
             "browser": options["browser"],
@@ -582,13 +593,14 @@ class JobManager:
                     continue
             try:
                 self._run_job(job_id)
-            except Exception as exc:  # Keep the worker alive even if a job explodes.
+            except Exception:  # Keep the worker alive even if a job explodes.
+                logger.exception("Unexpected download failure")
                 with self.lock:
                     job = self.jobs.get(job_id)
                     if job:
                         job["status"] = "failed"
                         job["stage"] = "Failed"
-                        job["message"] = friendly_error(str(exc))
+                        job["message"] = "The download failed unexpectedly. Try again or restart the app."
                         job["finished_at"] = now_iso()
                         job["updated_at"] = now_iso()
                 self._cleanup_temp(job_id)
@@ -626,7 +638,7 @@ class JobManager:
         try:
             info = probe_url(url, playlist, use_account, browser, profile, cookies_file)
         except UserError as exc:
-            self._fail(job_id, str(exc))
+            self._fail(job_id, exc.public_message)
             return
 
         self._update(
@@ -651,8 +663,9 @@ class JobManager:
         temp_dir = output_dir / ".yt2mp3-tmp" / job_id
         try:
             temp_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            self._fail(job_id, f"Could not create a temporary download folder: {exc}")
+        except OSError:
+            logger.exception("Could not create a temporary download folder")
+            self._fail(job_id, "Could not create a temporary download folder. Check the output folder permissions.")
             return
         with self.lock:
             self.jobs[job_id]["_temp_dir"] = str(temp_dir)
@@ -671,8 +684,9 @@ class JobManager:
                 bufsize=1,
                 creationflags=CREATE_NO_WINDOW,
             )
-        except OSError as exc:
-            self._fail(job_id, f"Could not start yt-dlp: {exc}")
+        except OSError:
+            logger.exception("Could not start yt-dlp")
+            self._fail(job_id, "Could not start yt-dlp. Check the installation and try again.")
             return
 
         with self.lock:
@@ -716,7 +730,9 @@ class JobManager:
                     job["_done_paths"] = done_paths
 
         if return_code != 0:
-            message = friendly_error(last_error or "\n".join(tail[-8:]))
+            diagnostics = last_error or "\n".join(tail[-8:])
+            logger.error("yt-dlp download failed: %s", diagnostics)
+            message = friendly_error(diagnostics)
             if done_paths:
                 self._complete(job_id, done_paths, partial=True, message=message)
             else:
@@ -1027,7 +1043,6 @@ class JobManager:
             job["status"] = "failed"
             job["stage"] = "Failed"
             job["message"] = clean_text(message, 700)
-            job["error_detail"] = clean_text(job.get("_last_error") or "", 700)
             job["finished_at"] = now_iso()
             job["updated_at"] = now_iso()
         self._cleanup_temp(job_id)
@@ -1129,7 +1144,7 @@ def update_settings():
         settings = manager.update_settings(data)
         return jsonify({"ok": True, "settings": settings})
     except UserError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": False, "error": exc.public_message}), 400
 
 
 @app.post("/api/inspect")
@@ -1148,9 +1163,10 @@ def inspect():
         )
         return jsonify({"ok": True, "info": info})
     except UserError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"ok": False, "error": friendly_error(str(exc))}), 500
+        return jsonify({"ok": False, "error": exc.public_message}), 400
+    except Exception:
+        logger.exception("Unexpected inspection failure")
+        return jsonify({"ok": False, "error": "Could not inspect that link. Try again or restart the app."}), 500
 
 
 @app.post("/api/jobs")
@@ -1160,7 +1176,7 @@ def create_job():
         job = manager.create_job(data)
         return jsonify({"ok": True, "job": job})
     except UserError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": False, "error": exc.public_message}), 400
 
 
 @app.post("/api/jobs/<job_id>/cancel")
@@ -1168,7 +1184,7 @@ def cancel_job(job_id: str):
     try:
         return jsonify({"ok": True, "job": manager.cancel_job(job_id)})
     except UserError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 404
+        return jsonify({"ok": False, "error": exc.public_message}), 404
 
 
 @app.post("/api/jobs/<job_id>/retry")
@@ -1176,7 +1192,7 @@ def retry_job(job_id: str):
     try:
         return jsonify({"ok": True, "job": manager.retry_job(job_id)})
     except UserError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": False, "error": exc.public_message}), 400
 
 
 @app.post("/api/jobs/clear-finished")
@@ -1230,9 +1246,10 @@ def open_path():
             subprocess.Popen(["xdg-open", str(path)])
         return jsonify({"ok": True})
     except UserError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-    except OSError as exc:
-        return jsonify({"ok": False, "error": f"Could not open that path: {exc}"}), 500
+        return jsonify({"ok": False, "error": exc.public_message}), 400
+    except OSError:
+        logger.exception("Could not open that path")
+        return jsonify({"ok": False, "error": "Could not open that path. Check its permissions and try again."}), 500
 
 
 @app.post("/api/reveal")
@@ -1250,9 +1267,10 @@ def reveal_path():
             subprocess.Popen(["xdg-open", str(path.parent)])
         return jsonify({"ok": True})
     except UserError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-    except OSError as exc:
-        return jsonify({"ok": False, "error": f"Could not reveal that path: {exc}"}), 500
+        return jsonify({"ok": False, "error": exc.public_message}), 400
+    except OSError:
+        logger.exception("Could not reveal that path")
+        return jsonify({"ok": False, "error": "Could not reveal that path. Check its permissions and try again."}), 500
 
 
 @app.post("/api/open-output")
@@ -1266,8 +1284,11 @@ def open_output():
         else:
             subprocess.Popen(["xdg-open", str(path)])
         return jsonify({"ok": True})
-    except (OSError, UserError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+    except UserError as exc:
+        return jsonify({"ok": False, "error": exc.public_message}), 400
+    except OSError:
+        logger.exception("Could not open the output folder")
+        return jsonify({"ok": False, "error": "Could not open the output folder. Check its permissions and try again."}), 400
 
 
 _dialog_lock = threading.Lock()
@@ -1296,8 +1317,9 @@ def pick_folder():
                     title="Choose where MP3s are saved",
                 )
                 root.destroy()
-        except Exception as exc:
-            return jsonify({"ok": False, "error": f"The folder picker could not open: {exc}"}), 500
+        except Exception:
+            logger.exception("Could not open the folder picker")
+            return jsonify({"ok": False, "error": "The folder picker could not open. Type a path instead."}), 500
         if not selected:
             return jsonify({"ok": False, "canceled": True})
         return jsonify({"ok": True, "path": selected})
@@ -1315,8 +1337,9 @@ def pick_folder():
                 text=True,
                 timeout=180,
             )
-        except (OSError, subprocess.SubprocessError) as exc:
-            return jsonify({"ok": False, "error": f"The folder picker could not open: {exc}"}), 500
+        except (OSError, subprocess.SubprocessError):
+            logger.exception("Could not open the folder picker")
+            return jsonify({"ok": False, "error": "The folder picker could not open. Type a path instead."}), 500
         if result.returncode != 0:
             if "cancel" in (result.stderr or "").lower() or result.returncode == 1:
                 return jsonify({"ok": False, "canceled": True})
@@ -1339,8 +1362,9 @@ def pick_folder():
 
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=180)
-    except (OSError, subprocess.SubprocessError) as exc:
-        return jsonify({"ok": False, "error": f"The folder picker could not open: {exc}"}), 500
+    except (OSError, subprocess.SubprocessError):
+        logger.exception("Could not open the folder picker")
+        return jsonify({"ok": False, "error": "The folder picker could not open. Type a path instead."}), 500
     if result.returncode != 0:
         return jsonify({"ok": False, "canceled": True})
     selected = result.stdout.strip()

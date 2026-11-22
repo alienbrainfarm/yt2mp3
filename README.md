@@ -140,6 +140,19 @@ $env:YT2MP3_NO_BROWSER = "1"
 
 The app binds to `127.0.0.1` only. API requests require a per-run token that is injected into the page, so another website cannot drive the local downloader through a simple cross-origin request.
 
+Run the error-response regression tests in an environment with the dependencies
+from `requirements.txt` installed:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+These tests use temporary app data and simulate downloader and desktop failures;
+they do not download media or open native dialogs. Unexpected error details are
+kept in local diagnostics (the terminal when running from source, or
+`yt2mp3.log` in the packaged app's data directory). Treat those logs as
+sensitive and redact them before sharing.
+
 ## Building packages
 
 - Windows: run `build_exe.bat` after `setup.bat`.
