@@ -180,6 +180,14 @@ kept in local diagnostics (the terminal when running from source, or
 `yt2mp3.log` in the packaged app's data directory). Treat those logs as
 sensitive and redact them before sharing.
 
+Dependabot checks both Python requirements files and GitHub Actions weekly on
+Mondays at 09:00 Europe/Amsterdam. Minor and patch version updates are grouped
+by ecosystem; major updates get separate pull requests. Python updates raise
+the minimum supported dependency version. Vulnerability alerts and automatic
+security-fix pull requests are enabled separately from the weekly schedule.
+Updates require the protected branch's tests and CodeQL checks before merging;
+they are not automatically merged or published as packaged releases.
+
 ## Building packages
 
 - Windows: run `build_exe.bat` after `setup.bat`.
