@@ -38,6 +38,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-build.txt
 
+      - name: Security regression tests
+        run: python -m unittest discover -s tests -v
+
       - name: Build
         run: python build.py
 
@@ -80,10 +83,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != "true" ]; then
+              echo "Refusing to replace assets on a published release. Create a new version instead."
+              exit 1
+            fi
             gh release upload "$TAG" release/* --clobber
           else
             gh release create "$TAG" release/* \
               --title "yt2mp3 $TAG" \
               --notes "Cross-platform desktop builds. See the README for platform-specific launch notes." \
+              --draft \
               --verify-tag
           fi

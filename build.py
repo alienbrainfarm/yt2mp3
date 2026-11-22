@@ -49,6 +49,7 @@ def copy_docs(target: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "LICENSE", target / "LICENSE.txt")
     shutil.copy2(ROOT / "README.md", target / "README.md")
+    shutil.copy2(ROOT / "SECURITY.md", target / "SECURITY.md")
     shutil.copy2(ROOT / "THIRD_PARTY_NOTICES.md", target / "THIRD_PARTY_NOTICES.md")
     licenses = target / "licenses"
     if licenses.exists():

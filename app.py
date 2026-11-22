@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 APP_NAME = "yt2mp3"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 IS_WINDOWS = os.name == "nt"
 IS_FROZEN = bool(getattr(sys, "frozen", False))
 
